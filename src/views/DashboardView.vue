@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { urlsService } from '../services/api.js'
 import StatusBadge from '../components/StatusBadge.vue'
 import AddURLModal from '../components/AddURLModal.vue'
+import SiteFavicon from '../components/SiteFavicon.vue'
 
 const router = useRouter()
 const urls = ref([])
@@ -127,13 +128,16 @@ onUnmounted(() => clearInterval(refreshInterval))
       <div
         v-for="url in urls"
         :key="url.id"
-        @click="router.push(`/urls/${url.id}`)"
+        @click="router.push({ path: `/urls/${url.id}`, query: { name: url.name, url: url.url } })"
         class="group flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-xl cursor-pointer hover:border-gray-300 hover:shadow-sm transition-all duration-150"
       >
-        <StatusBadge :is-up="statuses[url.id]?.is_up ?? null" />
+        <SiteFavicon :url="url.url" :size="20" />
 
         <div class="flex-1 min-w-0">
-          <p class="font-medium text-sm text-gray-900">{{ url.name }}</p>
+          <div class="flex items-center gap-2">
+            <p class="font-medium text-sm text-gray-900">{{ url.name }}</p>
+            <StatusBadge :is-up="statuses[url.id]?.is_up ?? null" />
+          </div>
           <p class="text-xs text-gray-500 truncate mt-0.5">{{ url.url }}</p>
         </div>
 

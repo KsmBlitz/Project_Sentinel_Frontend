@@ -1,11 +1,15 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { urlsService } from '../services/api.js'
 import StatusBadge from '../components/StatusBadge.vue'
+import SiteFavicon from '../components/SiteFavicon.vue'
 
 const props = defineProps({ id: String })
 const router = useRouter()
+const route = useRoute()
+const siteName = computed(() => route.query.name || '')
+const siteUrl = computed(() => route.query.url || '')
 
 const status = ref(null)
 const stats = ref([])
@@ -65,15 +69,22 @@ onMounted(fetchAll)
 
 <template>
   <div>
-    <button
-      @click="router.push('/')"
-      class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors mb-6"
-    >
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-      </svg>
-      Volver al dashboard
-    </button>
+    <div class="flex items-center justify-between mb-6">
+      <button
+        @click="router.push('/')"
+        class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+      >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Volver
+      </button>
+
+      <div v-if="siteName" class="flex items-center gap-2">
+        <SiteFavicon v-if="siteUrl" :url="siteUrl" :size="18" />
+        <span class="text-base font-semibold text-gray-900">{{ siteName }}</span>
+      </div>
+    </div>
 
     <div v-if="loading" class="space-y-4">
       <div class="h-16 bg-gray-200/60 rounded-xl animate-pulse"></div>
