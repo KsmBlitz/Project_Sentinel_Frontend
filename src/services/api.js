@@ -24,4 +24,8 @@ export const urlsService = {
   getIncidents(id) {
     return api.get(`/urls/${id}/incidents`).then(r => r.data)
   },
+
+  checkNow(id) {
+    return api.post(`/urls/${id}/check`).then(r => r.data)
+  },
 }
