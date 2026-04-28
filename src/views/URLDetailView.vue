@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { urlsService } from '../services/api.js'
 import StatusBadge from '../components/StatusBadge.vue'
@@ -13,6 +13,18 @@ const incidents = ref([])
 const loading = ref(true)
 const error = ref(null)
 
+const uptimeAvg = computed(() => {
+  if (stats.value.length === 0) return null
+  const avg = stats.value.reduce((acc, s) => acc + s.uptime_pct, 0) / stats.value.length
+  return avg.toFixed(1)
+})
+
+const avgResponseMs = computed(() => {
+  const valid = stats.value.filter(s => s.avg_response_ms != null)
+  if (valid.length === 0) return null
+  return Math.round(valid.reduce((acc, s) => acc + s.avg_response_ms, 0) / valid.length)
+})
+
 async function fetchAll() {
   loading.value = true
   error.value = null
@@ -25,7 +37,7 @@ async function fetchAll() {
     status.value = s
     stats.value = st
     incidents.value = inc
-  } catch (e) {
+  } catch {
     error.value = 'No se pudo cargar la información'
   } finally {
     loading.value = false
@@ -34,20 +46,18 @@ async function fetchAll() {
 
 function formatDate(iso) {
   if (!iso) return '—'
-  return new Intl.DateTimeFormat('es-CL', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(new Date(iso))
+  return new Intl.DateTimeFormat('es-CL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso))
 }
 
 function formatHour(iso) {
   if (!iso) return '—'
-  return new Intl.DateTimeFormat('es-CL', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(iso))
+  return new Intl.DateTimeFormat('es-CL', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
+}
+
+function uptimeColor(pct) {
+  if (pct >= 99) return 'text-emerald-400'
+  if (pct >= 95) return 'text-yellow-400'
+  return 'text-red-400'
 }
 
 onMounted(fetchAll)
@@ -57,66 +67,85 @@ onMounted(fetchAll)
   <div>
     <button
       @click="router.push('/')"
-      class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 transition-colors mb-6"
+      class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 transition-colors mb-6"
     >
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
       </svg>
-      Volver
+      Volver al dashboard
     </button>
 
     <div v-if="loading" class="space-y-4">
-      <div class="h-24 bg-gray-800/50 rounded-xl animate-pulse"></div>
-      <div class="h-48 bg-gray-800/50 rounded-xl animate-pulse"></div>
+      <div class="h-20 bg-gray-800/40 rounded-xl animate-pulse"></div>
+      <div class="grid grid-cols-3 gap-3">
+        <div v-for="n in 3" :key="n" class="h-20 bg-gray-800/40 rounded-xl animate-pulse"></div>
+      </div>
+      <div class="h-56 bg-gray-800/40 rounded-xl animate-pulse"></div>
     </div>
 
-    <div v-else-if="error" class="text-center py-16 text-red-400">
-      <p>{{ error }}</p>
-    </div>
+    <div v-else-if="error" class="text-center py-16 text-red-400 text-sm">{{ error }}</div>
 
     <div v-else class="space-y-6">
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 p-4 bg-gray-900 border border-gray-800 rounded-xl">
         <StatusBadge :is-up="status?.is_up ?? null" />
-        <div>
-          <p class="text-sm text-gray-400">Último chequeo: {{ formatDate(status?.last_checked_at) }}</p>
-          <p v-if="status?.last_response_time_ms" class="text-xs text-gray-500">
+        <div class="flex-1">
+          <p class="text-sm text-gray-400">
+            Último chequeo:
+            <span class="text-gray-200">{{ formatDate(status?.last_checked_at) }}</span>
+          </p>
+          <p v-if="status?.last_response_time_ms" class="text-xs text-gray-500 mt-0.5">
             Tiempo de respuesta: {{ status.last_response_time_ms }} ms
           </p>
         </div>
       </div>
 
-      <section>
-        <h2 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">
-          Estadísticas — últimos 7 días
-        </h2>
-        <div v-if="stats.length === 0" class="text-sm text-gray-600 py-4 text-center">
-          Sin datos de estadísticas aún
+      <div v-if="stats.length > 0" class="grid grid-cols-3 gap-3">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <p class="text-xs text-gray-500 mb-1">Uptime promedio</p>
+          <p class="text-2xl font-semibold" :class="uptimeColor(Number(uptimeAvg))">
+            {{ uptimeAvg }}%
+          </p>
+          <p class="text-xs text-gray-600 mt-1">últimos 7 días</p>
         </div>
-        <div v-else class="overflow-x-auto">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <p class="text-xs text-gray-500 mb-1">Respuesta prom.</p>
+          <p class="text-2xl font-semibold text-gray-200">{{ avgResponseMs ?? '—' }}</p>
+          <p class="text-xs text-gray-600 mt-1">milisegundos</p>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <p class="text-xs text-gray-500 mb-1">Incidentes</p>
+          <p class="text-2xl font-semibold" :class="incidents.length > 0 ? 'text-red-400' : 'text-gray-200'">
+            {{ incidents.length }}
+          </p>
+          <p class="text-xs text-gray-600 mt-1">registrados</p>
+        </div>
+      </div>
+
+      <section>
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+          Historial por hora — últimos 7 días
+        </h2>
+        <div v-if="stats.length === 0" class="text-center py-10 text-sm text-gray-600 bg-gray-900 border border-gray-800 rounded-xl">
+          Sin estadísticas aún. El worker de chequeos debe correr al menos una vez.
+        </div>
+        <div v-else class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
           <table class="w-full text-sm">
             <thead>
-              <tr class="text-left text-gray-500 text-xs border-b border-gray-800">
-                <th class="pb-2 pr-4 font-medium">Hora</th>
-                <th class="pb-2 pr-4 font-medium">Uptime</th>
-                <th class="pb-2 pr-4 font-medium">Chequeos</th>
-                <th class="pb-2 pr-4 font-medium">Prom. respuesta</th>
-                <th class="pb-2 font-medium">P95</th>
+              <tr class="text-left text-xs text-gray-500 border-b border-gray-800">
+                <th class="px-4 py-3 font-medium">Hora</th>
+                <th class="px-4 py-3 font-medium">Uptime</th>
+                <th class="px-4 py-3 font-medium hidden sm:table-cell">Chequeos</th>
+                <th class="px-4 py-3 font-medium hidden sm:table-cell">Prom.</th>
+                <th class="px-4 py-3 font-medium">P95</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-gray-800/50">
-              <tr v-for="row in stats" :key="row.hour" class="text-gray-300">
-                <td class="py-2.5 pr-4 text-gray-400 whitespace-nowrap">{{ formatHour(row.hour) }}</td>
-                <td class="py-2.5 pr-4">
-                  <span
-                    :class="row.uptime_pct >= 99 ? 'text-emerald-400' : row.uptime_pct >= 95 ? 'text-yellow-400' : 'text-red-400'"
-                    class="font-medium"
-                  >
-                    {{ row.uptime_pct }}%
-                  </span>
-                </td>
-                <td class="py-2.5 pr-4">{{ row.successful }}/{{ row.total_checks }}</td>
-                <td class="py-2.5 pr-4">{{ row.avg_response_ms ?? '—' }} ms</td>
-                <td class="py-2.5">{{ row.p95_response_ms ?? '—' }} ms</td>
+            <tbody class="divide-y divide-gray-800/60">
+              <tr v-for="row in stats" :key="row.hour" class="hover:bg-gray-800/30 transition-colors">
+                <td class="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{{ formatHour(row.hour) }}</td>
+                <td class="px-4 py-3 font-medium" :class="uptimeColor(row.uptime_pct)">{{ row.uptime_pct }}%</td>
+                <td class="px-4 py-3 text-gray-400 hidden sm:table-cell">{{ row.successful }}/{{ row.total_checks }}</td>
+                <td class="px-4 py-3 text-gray-400 hidden sm:table-cell">{{ row.avg_response_ms ?? '—' }} ms</td>
+                <td class="px-4 py-3 text-gray-400">{{ row.p95_response_ms ?? '—' }} ms</td>
               </tr>
             </tbody>
           </table>
@@ -124,10 +153,8 @@ onMounted(fetchAll)
       </section>
 
       <section>
-        <h2 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">
-          Incidentes
-        </h2>
-        <div v-if="incidents.length === 0" class="text-sm text-gray-600 py-4 text-center bg-gray-900 rounded-xl border border-gray-800">
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Incidentes</h2>
+        <div v-if="incidents.length === 0" class="text-center py-10 text-sm text-gray-600 bg-gray-900 border border-gray-800 rounded-xl">
           Sin incidentes registrados
         </div>
         <div v-else class="space-y-2">
@@ -135,21 +162,21 @@ onMounted(fetchAll)
             v-for="inc in incidents"
             :key="inc.id"
             class="p-4 rounded-xl border bg-gray-900"
-            :class="inc.resolved_at ? 'border-gray-800' : 'border-red-900/50 bg-red-950/20'"
+            :class="inc.resolved_at ? 'border-gray-800' : 'border-red-900/50'"
           >
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between mb-2">
               <span
                 class="text-xs font-medium px-2 py-0.5 rounded-full"
-                :class="inc.resolved_at ? 'bg-gray-700 text-gray-400' : 'bg-red-900/50 text-red-400'"
+                :class="inc.resolved_at ? 'bg-gray-800 text-gray-400' : 'bg-red-900/40 text-red-400'"
               >
-                {{ inc.resolved_at ? 'Resuelto' : 'Activo' }}
+                {{ inc.resolved_at ? 'Resuelto' : '● Activo' }}
               </span>
               <span class="text-xs text-gray-500">{{ inc.checks_failed }} chequeos fallidos</span>
             </div>
-            <div class="mt-2 text-xs text-gray-400 space-y-0.5">
-              <p>Inicio: {{ formatDate(inc.started_at) }}</p>
-              <p v-if="inc.resolved_at">Fin: {{ formatDate(inc.resolved_at) }}</p>
-              <p v-if="inc.duration_min">Duración: {{ inc.duration_min }} minutos</p>
+            <div class="text-xs text-gray-400 space-y-1">
+              <p>Inicio: <span class="text-gray-300">{{ formatDate(inc.started_at) }}</span></p>
+              <p v-if="inc.resolved_at">Fin: <span class="text-gray-300">{{ formatDate(inc.resolved_at) }}</span></p>
+              <p v-if="inc.duration_min">Duración: <span class="text-gray-300">{{ inc.duration_min }} minutos</span></p>
             </div>
           </div>
         </div>
